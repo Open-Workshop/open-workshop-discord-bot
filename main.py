@@ -23,6 +23,20 @@ class MyClient(discord.Client):
         await tree.sync(guild=discord.Object(id=792572437292253224))
         print("Online")
 
+    async def on_guild_join(self, guild):
+        # Получение первого доступного текстового канала
+        channel = next((channel for channel in guild.text_channels if channel.permissions_for(guild.me).send_messages), None)
+
+        if channel:
+            await channel.send("""
+Этот бот позволяет скачивать моды со Steam через чат Discord! 💨
+
+**Разработчики не несут ответственность за контент получаемый через бота и ваши намеренья как его использовать. 📄**
+**А так же оставляя бота на этом сервере вы подтверждаете, что все участники официально приобрели игру/программу на одной из площадок где она представлена! 🛒**
+            """)
+        else:
+            print("Нет доступного канала для отправки сообщения.")
+
 client = MyClient(intents=discord.Intents.default())
 tree = app_commands.CommandTree(client)
 
@@ -77,6 +91,7 @@ async def download(interaction: discord.Interaction, link:str):
     await main_download(interaction=interaction, link=link)
 
 
+# TODO побороть ошибку параллельной загрузку
 # Основной обработчик загрузки модов
 async def main_download(interaction: discord.Interaction, link:str):
     global SERVER_ADDRESS
@@ -230,8 +245,6 @@ async def main_download(interaction: discord.Interaction, link:str):
     except:
         await channel.send("Ты вызвал странную ошибку...\nПопробуй загрузить мод еще раз!")
 
-
-# TODO при присоедении на сервер писать в первый же доступный канал приветственное письмо, с сообщением об отказе об ответственности
 
 
 with open('key.json', 'r') as file:

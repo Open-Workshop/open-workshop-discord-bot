@@ -1,6 +1,26 @@
 import pymorphy2
 import email.utils
 from datetime import datetime
+import aiohttp
+import requests
+import asyncio
+import json
+from urllib.parse import urlparse
+from urllib.parse import parse_qs
+
+async def fetch_data(url: str, timeout: int = 10):
+    return requests.get(url=url, timeout=timeout)
+
+async def pars_link(link):
+    if link.startswith("https://steamcommunity.com/sharedfiles/filedetails/") or link.startswith(
+                       "https://steamcommunity.com/workshop/filedetails/"):
+        parsed = urlparse(link, "highlight=params#url-parsing")
+        captured_value = parse_qs(parsed.query)
+        try:
+            link = captured_value['id'][0]
+        except:
+            link = False
+    return link
 
 async def format_seconds(seconds, word:str = 'секунда'):
     try:
@@ -13,9 +33,9 @@ async def format_seconds(seconds, word:str = 'секунда'):
 
 async def get_name(head:str):
     if head.startswith("attachment; filename="):
-        return head.split("attachment; filename=")[-1]
+        return head.split("attachment; filename=")[-1].replace('%20', ' ')
     else:
-        return email.utils.unquote(head.split("filename*=utf-8''")[-1])
+        return email.utils.unquote(head.split("filename*=utf-8''")[-1]).replace('%20', ' ')
 
 
 async def graf(data:list, date_key: str):

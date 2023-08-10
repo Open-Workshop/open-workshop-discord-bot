@@ -37,7 +37,7 @@ class MyClient(discord.Client):
 client = MyClient(intents=discord.Intents.default())
 tree = app_commands.CommandTree(client)
 
-@tree.command(name='statistics')
+@tree.command(name='statistics', description="Небольшая статистика работы сервиса")
 async def statistics(interaction: discord.Interaction):
     global SERVER_ADDRESS
     try:
@@ -58,7 +58,7 @@ async def statistics(interaction: discord.Interaction):
     except asyncio.TimeoutError:
         await interaction.response.send_message("Превышено время ожидания при получении общей статистики.")
 
-@tree.command(name='project')
+@tree.command(name='project', description="Информация о проекте и полезные ссылки :)")
 async def project(interaction: discord.Interaction):
     view = discord.ui.View()  # Establish an instance of the discord.ui.View class
     style = discord.ButtonStyle.gray  # The button will be gray in color
@@ -84,7 +84,7 @@ async def project(interaction: discord.Interaction):
 async def download_context(interaction: discord.Interaction, message: discord.Message):
     await main_download(interaction=interaction, link=message.content)
 
-@tree.command(name='download')
+@tree.command(name='download', description="Скачай мод напрямую со Steam передав ссылку на мод или ID мода в Steam!")
 async def download(interaction: discord.Interaction, link:str):
     await main_download(interaction=interaction, link=link)
 

@@ -1,15 +1,12 @@
-import json
-import aiohttp
-import tools
-import requests
-import discord
-from discord import app_commands, colour
-from discord.ui import Button
-import time
-from urllib.parse import urlparse
-from urllib.parse import parse_qs
-import asyncio
 import io
+import time
+import json
+import tools
+import asyncio
+import aiohttp
+import discord
+from discord import app_commands
+from discord.ui import Button
 
 
 SERVER_ADDRESS = 'https://43093.zetalink.ru:8000'
@@ -20,7 +17,7 @@ class MyClient(discord.Client):
         super().__init__(*args, **kwargs)
 
     async def on_ready(self):
-        await tree.sync(guild=discord.Object(id=792572437292253224))
+        await tree.sync()
         print("Online")
 
     async def on_guild_join(self, guild):
@@ -40,8 +37,9 @@ class MyClient(discord.Client):
 client = MyClient(intents=discord.Intents.default())
 tree = app_commands.CommandTree(client)
 
-@tree.command(name='statistics', guild=discord.Object(id=792572437292253224))
+@tree.command(name='statistics')
 async def statistics(interaction: discord.Interaction):
+    global SERVER_ADDRESS
     try:
         async with aiohttp.ClientSession() as session:
             response = await session.get(url=SERVER_ADDRESS+"/statistics/info/all", timeout=10)
@@ -60,7 +58,7 @@ async def statistics(interaction: discord.Interaction):
     except asyncio.TimeoutError:
         await interaction.response.send_message("Превышено время ожидания при получении общей статистики.")
 
-@tree.command(name='project', guild=discord.Object(id=792572437292253224))
+@tree.command(name='project')
 async def project(interaction: discord.Interaction):
     view = discord.ui.View()  # Establish an instance of the discord.ui.View class
     style = discord.ButtonStyle.gray  # The button will be gray in color
@@ -76,17 +74,17 @@ async def project(interaction: discord.Interaction):
     item = Button(style=style, emoji="☎", label="Такой же бот в Telegram", url="https://t.me/get_from_steam_bot")
     view.add_item(item=item)
 
-    item = Button(style=style, emoji="🤩", label="API бота", url="https://43093.zetalink.ru:8000")
+    item = Button(style=style, emoji="🤩", label="API бота", url=SERVER_ADDRESS)
     view.add_item(item=item)
 
     await interaction.response.send_message(embed=embedVar, view=view)
 
 # Функции-точки входа
-@tree.context_menu(name="Скачать мод", guild=discord.Object(id=792572437292253224))
+@tree.context_menu(name="Скачать мод")
 async def download_context(interaction: discord.Interaction, message: discord.Message):
     await main_download(interaction=interaction, link=message.content)
 
-@tree.command(name='download', guild=discord.Object(id=792572437292253224))
+@tree.command(name='download')
 async def download(interaction: discord.Interaction, link:str):
     await main_download(interaction=interaction, link=link)
 

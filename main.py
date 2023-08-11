@@ -44,7 +44,8 @@ async def statistics(interaction: discord.Interaction):
         async with aiohttp.ClientSession() as session:
             response = await session.get(url=SERVER_ADDRESS+"/statistics/info/all", timeout=10)
 
-            info = json.loads(await response.text())
+            text = await response.text()
+            info = json.loads(text)
 
             embedVar = discord.Embed(title="Общая статистика", description=f"""
                 Пользователям отправлено {info.get('mods_sent_count')} файлов.

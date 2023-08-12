@@ -1,15 +1,10 @@
 import pymorphy2
-import email.utils
 from datetime import datetime
-import aiohttp
-import requests
-import asyncio
-import json
 from urllib.parse import urlparse
 from urllib.parse import parse_qs
+from urllib.parse import unquote
+from transliterate import translit
 
-async def fetch_data(url: str, timeout: int = 10):
-    return requests.get(url=url, timeout=timeout)
 
 async def pars_link(link):
     if link.startswith("https://steamcommunity.com/sharedfiles/filedetails/") or link.startswith(
@@ -32,10 +27,11 @@ async def format_seconds(seconds, word:str = 'секунда'):
     return res
 
 async def get_name(head:str):
-    if head.startswith("attachment; filename="):
-        return head.split("attachment; filename=")[-1].replace('%20', ' ')
-    else:
-        return email.utils.unquote(head.split("filename*=utf-8''")[-1]).replace('%20', ' ')
+    option = "attachment; filename="
+    # Фиксим странные символы
+    result = unquote(head.split(option if head.startswith(option) else "filename*=utf-8''")[-1])
+    # Кириллицу переводим в латиницу, т.к. первую дискорд в именах файлов не поддерживает.
+    return translit(result, "ru", reversed=True)
 
 
 async def graf(data:list, date_key: str):

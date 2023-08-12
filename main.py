@@ -9,7 +9,7 @@ from discord import app_commands
 from discord.ui import Button
 
 
-SERVER_ADDRESS = 'https://43093.zetalink.ru:8000'
+SERVER_ADDRESS = 'https://43093.zetalink.ru'
 
 
 class MyClient(discord.Client):

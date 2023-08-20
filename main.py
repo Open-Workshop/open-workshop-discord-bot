@@ -9,7 +9,7 @@ from discord import app_commands
 from discord.ui import Button
 
 
-SERVER_ADDRESS = 'https://43093.zetalink.ru'
+SERVER_ADDRESS = 'https://api.openworkshop.su'
 
 
 class MyClient(discord.Client):

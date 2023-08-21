@@ -77,6 +77,9 @@ async def project(interaction: discord.Interaction):
 
     item = Button(style=style, emoji="🤩", label="API бота", url=SERVER_ADDRESS)
     view.add_item(item=item)
+    
+    item = Button(style=style, emoji="☝", label="Сайт", url="https://openworkshop.su")
+    view.add_item(item=item)
 
     await interaction.response.send_message(embed=embedVar, view=view)
 

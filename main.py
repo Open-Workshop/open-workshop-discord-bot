@@ -54,7 +54,7 @@ async def statistics(interaction: discord.Interaction):
                 У `{info.get('games', 0)} игр` сохранено `{info.get('mods', 0)} модов`, `{info.get('mods_dependencies', 0)}` из которых имеют зависимости на другие моды.
                 Сервису известно об `{await tools.format_seconds(seconds=info.get('genres', 0), word="жанр")} игр` и `{await tools.format_seconds(seconds=info.get('mods_tags', 0), word="тег")}` для модов.
             
-                Бот находится на `{await tools.format_seconds(seconds=2, word="сервере")}`.
+                Бот находится на `{await tools.format_seconds(seconds=len(client.guilds), word="сервере")}`.
             """, color=discord.Color.dark_gray())
 
             await interaction.response.send_message(embed=embedVar)

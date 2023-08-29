@@ -31,10 +31,23 @@ class MyClient(discord.Client):
 **Разработчики не несут ответственность за контент получаемый через бота и ваши намеренья как его использовать. 📄**
 **А так же оставляя бота на этом сервере вы подтверждаете, что все участники официально приобрели игру/программу на одной из площадок где она представлена! 🛒**
             """)
+
+            view = discord.ui.View()  # Establish an instance of the discord.ui.View class
+            item = Button(emoji="👀", label="Клик!",
+                          url="https://steamdb.info/sub/17906/apps/")
+            view.add_item(item=item)
+
+            await channel.send("Список поддерживаемых игр", view=view)
         else:
             print("Нет доступного канала для отправки сообщения.")
 
-client = MyClient(intents=discord.Intents.default())
+
+activity = discord.Activity(
+    type=discord.ActivityType.playing,
+    name="скачивание модов"
+)
+
+client = MyClient(intents=discord.Intents.default(), activity=activity)
 tree = app_commands.CommandTree(client)
 
 @tree.command(name='statistics', description="Небольшая статистика работы сервиса")
@@ -81,6 +94,9 @@ async def project(interaction: discord.Interaction):
     view.add_item(item=item)
     
     item = Button(style=style, emoji="☝", label="Сайт", url="https://openworkshop.su")
+    view.add_item(item=item)
+
+    item = Button(style=style, emoji="👀", label="Список поддерживаемых игр", url="https://steamdb.info/sub/17906/apps/")
     view.add_item(item=item)
 
     await interaction.response.send_message(embed=embedVar, view=view)
@@ -176,7 +192,11 @@ async def main_download(interaction: discord.Interaction, link:str):
                             if header_result.get('content-type') == "application/json":
                                 data = json.loads(res.decode())
                                 if data.get(str(link), None) == None:
-                                    await channel.send("Серверу не удалось загрузить этот мод 😢")
+                                    view = discord.ui.View()
+                                    item = Button(emoji="👀", label="Список поддерживаемых игр", url="https://steamdb.info/sub/17906/apps/")
+                                    view.add_item(item=item)
+
+                                    await channel.send("Серверу не удалось загрузить этот мод 😢", view=view)
                                     return -1
                                 elif data[str(link)] <= 1:
                                     try:
@@ -219,7 +239,13 @@ async def main_download(interaction: discord.Interaction, link:str):
                                                         file=file)
                                                     return
                                                 else:
-                                                    await channel.send("Серверу не удалось загрузить этот мод 😢")
+                                                    view = discord.ui.View()
+                                                    item = Button(emoji="👀", label="Список поддерживаемых игр",
+                                                                  url="https://steamdb.info/sub/17906/apps/")
+                                                    view.add_item(item=item)
+
+                                                    await channel.send("Серверу не удалось загрузить этот мод 😢",
+                                                                       view=view)
                                     except:
                                         await channel.send("Похоже, что сервер не отвечает 😔 _(point=1)_")
 

@@ -7,7 +7,7 @@ from pathlib import Path
 from dotenv import find_dotenv, load_dotenv
 
 from .bot import WorkshopBot
-from .config import BotConfig, ConfigurationError, DEFAULT_CONFIG_PATH
+from .config import BotConfig, CONFIG_PATH, ConfigurationError
 
 
 LOGGER = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "-c",
         "--config",
-        default=str(DEFAULT_CONFIG_PATH),
+        default=str(CONFIG_PATH),
         help="Path to config.json",
     )
     args = parser.parse_args(argv)

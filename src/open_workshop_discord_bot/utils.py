@@ -9,6 +9,14 @@ from .config import MessagesConfig
 
 
 _FILENAME_CLEANUP_RE = re.compile(r"[\\/\x00-\x1f]+")
+_DISCORD_NAMED_COLOR_VALUES = {
+    "dark_gray": 0x607D8B,
+    "dark_grey": 0x607D8B,
+    # discord.py has no plain gray()/grey(); keep these config aliases on greyple.
+    "gray": 0x99AAB5,
+    "grey": 0x99AAB5,
+    "blurple": 0x5865F2,
+}
 
 
 def format_count(number: int, forms: tuple[str, str, str]) -> str:
@@ -127,15 +135,8 @@ def parse_discord_color(value: str | int) -> discord.Color:
     if not normalized:
         raise ValueError("Color value cannot be empty.")
 
-    named_colors = {
-        "dark_gray": discord.Color.dark_gray(),
-        "dark_grey": discord.Color.dark_grey(),
-        "gray": discord.Color.gray(),
-        "grey": discord.Color.grey(),
-        "blurple": discord.Color.blurple(),
-    }
-    if normalized in named_colors:
-        return named_colors[normalized]
+    if normalized in _DISCORD_NAMED_COLOR_VALUES:
+        return discord.Color(_DISCORD_NAMED_COLOR_VALUES[normalized])
 
     if normalized.startswith("#"):
         normalized = normalized[1:]

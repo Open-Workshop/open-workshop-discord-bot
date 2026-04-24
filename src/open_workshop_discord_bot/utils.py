@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 import re
+from typing import Literal
 from urllib.parse import parse_qs, unquote, urlparse
 
 import discord
@@ -17,6 +19,12 @@ _DISCORD_NAMED_COLOR_VALUES = {
     "grey": 0x99AAB5,
     "blurple": 0x5865F2,
 }
+
+
+@dataclass(frozen=True, slots=True)
+class WorkshopReference:
+    id: int
+    kind: Literal["openworkshop", "steam", "unknown"]
 
 
 def format_count(number: int, forms: tuple[str, str, str]) -> str:
@@ -45,11 +53,18 @@ def pluralize_ru(number: int, forms: tuple[str, str, str]) -> str:
 
 
 def parse_workshop_id(raw_value: str) -> str | None:
+    reference = parse_workshop_reference(raw_value)
+    if reference is None:
+        return None
+    return str(reference.id)
+
+
+def parse_workshop_reference(raw_value: str) -> WorkshopReference | None:
     value = raw_value.strip()
     if not value:
         return None
     if value.isdigit():
-        return value
+        return WorkshopReference(id=int(value), kind="unknown")
 
     parsed = urlparse(value)
     if parsed.scheme not in {"http", "https"}:
@@ -61,12 +76,16 @@ def parse_workshop_id(raw_value: str) -> str | None:
     if host.endswith("steamcommunity.com"):
         if path in {"sharedfiles/filedetails", "workshop/filedetails"}:
             mod_id = parse_qs(parsed.query).get("id", [""])[0].strip()
-            return mod_id if mod_id.isdigit() else None
+            if mod_id.isdigit():
+                return WorkshopReference(id=int(mod_id), kind="steam")
+            return None
         return None
 
     if host.endswith(("openworkshop.su", "openworkshop.miskler.ru")) and path.startswith("mod/"):
         mod_id = path.removeprefix("mod/").split("/", 1)[0]
-        return mod_id if mod_id.isdigit() else None
+        if mod_id.isdigit():
+            return WorkshopReference(id=int(mod_id), kind="openworkshop")
+        return None
 
     return None
 

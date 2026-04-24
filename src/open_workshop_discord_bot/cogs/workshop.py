@@ -20,7 +20,8 @@ from ..utils import (
     format_count,
     format_duration,
     parse_discord_color,
-    parse_workshop_id,
+    parse_workshop_reference,
+    WorkshopReference,
 )
 
 if TYPE_CHECKING:
@@ -149,20 +150,19 @@ class WorkshopCog(commands.Cog):
         started_at = time.perf_counter()
         await interaction.response.defer(thinking=True)
 
-        mod_id_text = parse_workshop_id(raw_link)
-        if mod_id_text is None:
+        reference = parse_workshop_reference(raw_link)
+        if reference is None:
             await interaction.followup.send(
                 explain_invalid_workshop_link(raw_link, self.messages)
             )
             return
 
-        mod_id = int(mod_id_text)
-        if mod_id <= 0:
+        if reference.id <= 0:
             await interaction.followup.send(self.messages.negative_mod_id)
             return
 
         try:
-            mod_info = await self.api.fetch_mod_info(mod_id)
+            mod_id, mod_info = await self._fetch_mod_info(reference)
         except OpenWorkshopNotFoundError:
             await self._record_statistics_outcome("mod_not_found")
             await interaction.followup.send(self.messages.mod_not_found)
@@ -278,6 +278,17 @@ class WorkshopCog(commands.Cog):
             await self.statistics_storage.record_download_outcome(outcome)
         except Exception:
             LOGGER.exception("Failed to record statistics outcome %s", outcome)
+
+    async def _fetch_mod_info(self, reference: WorkshopReference) -> tuple[int, dict]:
+        if reference.kind == "steam":
+            return await self.api.fetch_mod_info_by_source_id("steam", reference.id)
+
+        try:
+            return reference.id, await self.api.fetch_mod_info(reference.id)
+        except OpenWorkshopNotFoundError:
+            if reference.kind != "unknown":
+                raise
+            return await self.api.fetch_mod_info_by_source_id("steam", reference.id)
 
 
 def _safe_format(template: str, fallback: str, **values: object) -> str:

@@ -22,12 +22,13 @@ class WorkshopBot(commands.Bot):
         self.api: OpenWorkshopAPI | None = None
         self.statistics_storage = StatisticsStorage(self.config.storage.database_path)
 
-        activity = _build_activity(self.config.discord.activity)
+        self._presence_activity = _build_activity(self.config.discord.activity)
+        self._presence_status = _parse_status(self.config.discord.status)
         super().__init__(
             command_prefix=commands.when_mentioned,
             intents=discord.Intents.default(),
-            activity=activity,
-            status=_parse_status(self.config.discord.status),
+            activity=self._presence_activity,
+            status=self._presence_status,
         )
 
     async def setup_hook(self) -> None:
@@ -45,6 +46,13 @@ class WorkshopBot(commands.Bot):
             LOGGER.info("Synced %d application commands.", len(synced_commands))
         else:
             LOGGER.info("Skipped application command sync because it is disabled in config.")
+
+    async def on_ready(self) -> None:
+        await self.change_presence(
+            activity=self._presence_activity,
+            status=self._presence_status,
+        )
+        LOGGER.info("Logged in as %s. Presence was applied from config.", self.user)
 
     async def close(self) -> None:
         if self.http_session is not None and not self.http_session.closed:

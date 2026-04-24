@@ -45,6 +45,40 @@ class OpenWorkshopAPI:
     async def fetch_mod_info(self, mod_id: int) -> dict[str, Any]:
         return await self._fetch_json(f"mods/{mod_id}", timeout=self._request_timeout)
 
+    async def fetch_mod_info_by_source_id(
+        self,
+        source: str,
+        source_id: int,
+    ) -> tuple[int, dict[str, Any]]:
+        payload = await self._fetch_json(
+            "mods",
+            timeout=self._request_timeout,
+            params={
+                "page_size": 1,
+                "primary_sources": json.dumps([source], separators=(",", ":")),
+                "allowed_sources_ids": json.dumps([source_id], separators=(",", ":")),
+            },
+        )
+
+        results = payload.get("results")
+        if not isinstance(results, list):
+            raise OpenWorkshopResponseError("Open Workshop returned a mod list without results.")
+
+        for result in results:
+            if not isinstance(result, dict):
+                continue
+            if result.get("source") != source:
+                continue
+            if _parse_positive_int(result.get("source_id")) != source_id:
+                continue
+
+            mod_id = _parse_positive_int(result.get("id"))
+            if mod_id is None:
+                raise OpenWorkshopResponseError("Open Workshop returned a mod without an id.")
+            return mod_id, {"result": result}
+
+        raise OpenWorkshopNotFoundError("Open Workshop mod was not found by source id.")
+
     async def fetch_download(self, mod_id: int) -> DownloadResponse:
         url = self._make_url(f"mods/{mod_id}/download")
         async with self._session.get(url, timeout=self._request_timeout) as response:
@@ -82,9 +116,10 @@ class OpenWorkshopAPI:
         path: str,
         *,
         timeout: aiohttp.ClientTimeout,
+        params: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         url = self._make_url(path)
-        async with self._session.get(url, timeout=timeout) as response:
+        async with self._session.get(url, timeout=timeout, params=params) as response:
             if response.status == 404:
                 raise OpenWorkshopNotFoundError("Open Workshop mod was not found.")
             return await self._read_json(response)
@@ -103,3 +138,13 @@ class OpenWorkshopAPI:
 
     def _make_url(self, path: str) -> str:
         return f"{self._base_url}/{path.lstrip('/')}"
+
+
+def _parse_positive_int(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        parsed = int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None

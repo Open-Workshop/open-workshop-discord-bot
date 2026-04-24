@@ -6,30 +6,44 @@ Discord-бот для скачивания модов Open Workshop напрям
 
 - Вся кодовая база перенесена в `src/open_workshop_discord_bot/`
 - Старые корневые входные файлы удалены
-- Конфигурация больше не завязана на `key.json`
+- Конфигурация без секретов теперь живет в `config.json`
+- Секреты передаются через переменные окружения
 - Зависимости теперь лежат в `requirements.txt`
 
 ## Установка
 
-1. Скопируйте `.env.example` в `.env` или задайте переменные окружения вручную.
-2. Укажите `DISCORD_TOKEN`.
-3. Установите зависимости:
+1. Скопируйте `.env.example` в `.env`.
+
+```bash
+cp .env.example .env
+```
+
+2. Укажите `DISCORD_TOKEN` в `.env`.
+
+3. При желании измените остальные настройки в `config.json`.
+4. Установите зависимости:
 
 ```bash
 python3 -m pip install -r requirements.txt
 ```
 
-4. Запустите бота:
+5. Запустите бота:
 
 ```bash
 PYTHONPATH=src python3 -m open_workshop_discord_bot
+# или
+PYTHONPATH=src python3 -m open_workshop_discord_bot --config path/to/config.json
 ```
 
-## Переменные окружения
+## Конфиг
 
-- `DISCORD_TOKEN` - токен Discord-бота, обязателен
-- `OPENWORKSHOP_API_URL` - базовый URL API, по умолчанию `https://api.openworkshop.su`
-- `OPENWORKSHOP_WEBSITE_URL` - базовый URL сайта, по умолчанию `https://openworkshop.su`
-- `OPENWORKSHOP_DIRECT_DOWNLOAD_THRESHOLD_BYTES` - порог, после которого бот дает прямую ссылку вместо файла
-- `OPENWORKSHOP_REQUEST_TIMEOUT_SECONDS` - таймаут обычных запросов к API
-- `OPENWORKSHOP_STATISTICS_TIMEOUT_SECONDS` - таймаут запроса статистики
+- `discord` - статус, activity и автосинхронизация команд
+- `api` - адрес API, сайт, таймауты и порог выдачи прямой ссылки
+- `ui` - тексты embed'ов, кнопки и цвета
+- `messages` - все пользовательские сообщения и шаблоны
+- `commands` - имена и описания slash-команд, а также имя context menu
+
+## Секреты
+
+- `DISCORD_TOKEN` - токен Discord-бота, хранится в `.env`
+- `.env` подхватывается автоматически при запуске

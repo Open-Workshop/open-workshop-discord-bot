@@ -1,7 +1,11 @@
 from __future__ import annotations
 
-from urllib.parse import parse_qs, unquote, urlparse
 import re
+from urllib.parse import parse_qs, unquote, urlparse
+
+import discord
+
+from .config import MessagesConfig
 
 
 _FILENAME_CLEANUP_RE = re.compile(r"[\\/\x00-\x1f]+")
@@ -59,8 +63,11 @@ def parse_workshop_id(raw_value: str) -> str | None:
     return None
 
 
-def explain_invalid_workshop_link(raw_value: str) -> str:
+def explain_invalid_workshop_link(raw_value: str, messages: MessagesConfig) -> str:
     value = raw_value.strip()
+    if not value:
+        return messages.invalid_link
+
     parsed = urlparse(value)
     host = parsed.netloc.lower()
 
@@ -68,13 +75,13 @@ def explain_invalid_workshop_link(raw_value: str) -> str:
         ("steamcommunity.com", "openworkshop.su", "store.steampowered.com")
     ):
         if host.endswith(("steamcommunity.com", "openworkshop.su")):
-            return "Мне нужна ссылка конкретно на мод! _(или его ID)_"
-        return "Пока что я умею скачивать только c Open Workshop и ассоциированные моды со Steam 😿"
+            return messages.need_specific_mod_link
+        return messages.unsupported_source
 
     if parsed.scheme in {"http", "https"}:
-        return "Пока что я умею скачивать только c Open Workshop и ассоциированные моды со Steam 😿"
+        return messages.unsupported_source
 
-    return "Если ты хочешь скачать мод, то просто скинь ссылку или `ID` мода в чат!"
+    return messages.download_prompt
 
 
 def extract_download_filename(content_disposition: str | None, fallback: str) -> str:
@@ -105,3 +112,32 @@ def extract_download_filename(content_disposition: str | None, fallback: str) ->
 def sanitize_filename(filename: str, fallback: str) -> str:
     cleaned = _FILENAME_CLEANUP_RE.sub("_", filename).strip().strip(".")
     return cleaned or fallback
+
+
+def parse_discord_color(value: str | int) -> discord.Color:
+    if isinstance(value, int):
+        return discord.Color(value)
+
+    normalized = value.strip().lower()
+    if not normalized:
+        raise ValueError("Color value cannot be empty.")
+
+    named_colors = {
+        "dark_gray": discord.Color.dark_gray(),
+        "dark_grey": discord.Color.dark_grey(),
+        "gray": discord.Color.gray(),
+        "grey": discord.Color.grey(),
+        "blurple": discord.Color.blurple(),
+    }
+    if normalized in named_colors:
+        return named_colors[normalized]
+
+    if normalized.startswith("#"):
+        normalized = normalized[1:]
+    if normalized.startswith("0x"):
+        normalized = normalized[2:]
+
+    if len(normalized) != 6:
+        raise ValueError(f"Unsupported color value: {value!r}")
+
+    return discord.Color(int(normalized, 16))

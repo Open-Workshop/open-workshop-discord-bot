@@ -35,6 +35,27 @@ PYTHONPATH=src python3 -m open_workshop_discord_bot
 PYTHONPATH=src python3 -m open_workshop_discord_bot --config path/to/config.json
 ```
 
+## Добавление на сервер
+
+Чтобы bot user появился участником сервера и был виден в `Guilds` при запуске,
+приложение нужно установить с OAuth2 scope `bot`. Одного `applications.commands`
+недостаточно: так Discord может добавить slash-команды, но не добавить самого
+бота как участника сервера.
+
+В Discord Developer Portal:
+
+1. Откройте `Installation`.
+2. Для `Guild Install` включите scopes `bot` и `applications.commands`.
+3. В bot permissions выберите минимум `View Channels`, `Send Messages`,
+   `Embed Links` и `Attach Files`.
+4. Используйте Guild Install / OAuth2 URL Generator, а не User Install.
+
+Прямая форма ссылки:
+
+```text
+https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot%20applications.commands&permissions=52224
+```
+
 ## Конфиг
 
 - `config.json` должен содержать все секции и все поля без пропусков

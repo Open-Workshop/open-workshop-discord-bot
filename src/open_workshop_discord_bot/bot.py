@@ -48,11 +48,10 @@ class WorkshopBot(commands.Bot):
             LOGGER.info("Skipped application command sync because it is disabled in config.")
 
     async def on_ready(self) -> None:
-        await self.change_presence(
-            activity=self._presence_activity,
-            status=self._presence_status,
+        LOGGER.info(
+            "Logged in as %s. Presence was configured during gateway identify.",
+            self.user,
         )
-        LOGGER.info("Logged in as %s. Presence was applied from config.", self.user)
 
     async def close(self) -> None:
         if self.http_session is not None and not self.http_session.closed:

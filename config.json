@@ -18,10 +18,10 @@
   },
   "ui": {
     "statistics_embed_title": "Общая статистика",
-    "statistics_embed_color": "#2f3136",
+    "statistics_embed_color": "#0034b5",
     "project_embed_title": "Это бесплатный open-source проект с открытым API! 😍",
-    "project_embed_color": "#2f3136",
-    "large_mod_embed_color": "#2f3136",
+    "project_embed_color": "#0034b5",
+    "large_mod_embed_color": "#0034b5",
     "direct_download_button_label": "Скачать",
     "website_button_label": "Страница на сайте",
     "project_buttons": [

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+from contextlib import suppress
 import logging
 
 import aiohttp
@@ -13,6 +15,7 @@ from .storage import StatisticsStorage
 
 
 LOGGER = logging.getLogger(__name__)
+PRESENCE_REFRESH_DELAY_SECONDS = 10
 
 
 class WorkshopBot(commands.Bot):
@@ -24,6 +27,7 @@ class WorkshopBot(commands.Bot):
 
         self._presence_activity = _build_activity(self.config.discord.activity)
         self._presence_status = _parse_status(self.config.discord.status)
+        self._presence_refresh_task: asyncio.Task[None] | None = None
         super().__init__(
             command_prefix=commands.when_mentioned,
             intents=discord.Intents.default(),
@@ -49,11 +53,41 @@ class WorkshopBot(commands.Bot):
 
     async def on_ready(self) -> None:
         LOGGER.info(
-            "Logged in as %s. Presence was configured during gateway identify.",
+            "Logged in as %s. Desired presence: status=%s, activity=%s:%r.",
             self.user,
+            self.config.discord.status,
+            self.config.discord.activity.type,
+            self.config.discord.activity.name,
         )
+        if self.config.discord.status.strip().lower() in {"invisible", "offline"}:
+            LOGGER.warning(
+                "Configured Discord presence status %r is shown as offline by Discord.",
+                self.config.discord.status,
+            )
+        if self._presence_refresh_task is None or self._presence_refresh_task.done():
+            self._presence_refresh_task = asyncio.create_task(self._refresh_presence_after_ready())
+
+    async def _refresh_presence_after_ready(self) -> None:
+        try:
+            await asyncio.sleep(PRESENCE_REFRESH_DELAY_SECONDS)
+            await self.change_presence(
+                activity=self._presence_activity,
+                status=self._presence_status,
+            )
+            LOGGER.info(
+                "Presence refresh was sent after %d seconds.",
+                PRESENCE_REFRESH_DELAY_SECONDS,
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            LOGGER.exception("Presence refresh failed.")
 
     async def close(self) -> None:
+        if self._presence_refresh_task is not None and not self._presence_refresh_task.done():
+            self._presence_refresh_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self._presence_refresh_task
         if self.http_session is not None and not self.http_session.closed:
             await self.http_session.close()
         await super().close()

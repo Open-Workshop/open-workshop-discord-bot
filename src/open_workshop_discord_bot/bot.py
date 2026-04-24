@@ -16,6 +16,7 @@ from .storage import StatisticsStorage
 
 LOGGER = logging.getLogger(__name__)
 PRESENCE_REFRESH_DELAY_SECONDS = 10
+PRESENCE_ACTIVITY_DELAY_SECONDS = 5
 
 
 class WorkshopBot(commands.Bot):
@@ -71,12 +72,24 @@ class WorkshopBot(commands.Bot):
         try:
             await asyncio.sleep(PRESENCE_REFRESH_DELAY_SECONDS)
             await self.change_presence(
+                status=self._presence_status,
+            )
+            LOGGER.info(
+                "Presence status refresh was sent after %d seconds: status=%s.",
+                PRESENCE_REFRESH_DELAY_SECONDS,
+                self._presence_status,
+            )
+
+            await asyncio.sleep(PRESENCE_ACTIVITY_DELAY_SECONDS)
+            await self.change_presence(
                 activity=self._presence_activity,
                 status=self._presence_status,
             )
             LOGGER.info(
-                "Presence refresh was sent after %d seconds.",
-                PRESENCE_REFRESH_DELAY_SECONDS,
+                "Presence activity refresh was sent after %d more seconds: status=%s, activity_payload=%s.",
+                PRESENCE_ACTIVITY_DELAY_SECONDS,
+                self._presence_status,
+                self._presence_activity.to_dict(),
             )
         except asyncio.CancelledError:
             raise
@@ -99,7 +112,9 @@ class WorkshopBot(commands.Bot):
         return self.api
 
 
-def _build_activity(activity_config: ActivityConfig) -> discord.Activity:
+def _build_activity(activity_config: ActivityConfig) -> discord.BaseActivity:
+    if activity_config.type.strip().lower() == "playing":
+        return discord.Game(name=activity_config.name)
     return discord.Activity(
         type=_parse_activity_type(activity_config.type),
         name=activity_config.name,

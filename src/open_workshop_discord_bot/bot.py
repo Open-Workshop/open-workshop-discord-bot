@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import suppress
+import json
 import logging
+import time
+from typing import Any
 
 import aiohttp
 import discord
@@ -17,6 +20,7 @@ from .storage import StatisticsStorage
 LOGGER = logging.getLogger(__name__)
 PRESENCE_REFRESH_DELAY_SECONDS = 10
 PRESENCE_ACTIVITY_DELAY_SECONDS = 5
+PRESENCE_REFRESH_INTERVAL_SECONDS = 60
 
 
 class WorkshopBot(commands.Bot):
@@ -26,14 +30,12 @@ class WorkshopBot(commands.Bot):
         self.api: OpenWorkshopAPI | None = None
         self.statistics_storage = StatisticsStorage(self.config.storage.database_path)
 
-        self._presence_activity = _build_activity(self.config.discord.activity)
+        self._presence_activity_payload = _build_activity_payload(self.config.discord.activity)
         self._presence_status = _parse_status(self.config.discord.status)
         self._presence_refresh_task: asyncio.Task[None] | None = None
         super().__init__(
             command_prefix=commands.when_mentioned,
             intents=discord.Intents.default(),
-            activity=self._presence_activity,
-            status=self._presence_status,
         )
 
     async def setup_hook(self) -> None:
@@ -53,12 +55,19 @@ class WorkshopBot(commands.Bot):
             LOGGER.info("Skipped application command sync because it is disabled in config.")
 
     async def on_ready(self) -> None:
+        user_id = self.user.id if self.user is not None else "unknown"
+        guilds = sorted(self.guilds, key=lambda guild: guild.name.lower())
+        guild_summary = ", ".join(f"{guild.name}({guild.id})" for guild in guilds[:10])
+        if len(guilds) > 10:
+            guild_summary = f"{guild_summary}, ... +{len(guilds) - 10} more"
         LOGGER.info(
-            "Logged in as %s. Desired presence: status=%s, activity=%s:%r.",
+            "Logged in as %s (id=%s). Guilds=%d [%s]. Desired presence: status=%s, activity_payload=%s.",
             self.user,
+            user_id,
+            len(guilds),
+            guild_summary or "none",
             self.config.discord.status,
-            self.config.discord.activity.type,
-            self.config.discord.activity.name,
+            self._presence_activity_payload,
         )
         if self.config.discord.status.strip().lower() in {"invisible", "offline"}:
             LOGGER.warning(
@@ -71,30 +80,43 @@ class WorkshopBot(commands.Bot):
     async def _refresh_presence_after_ready(self) -> None:
         try:
             await asyncio.sleep(PRESENCE_REFRESH_DELAY_SECONDS)
-            await self.change_presence(
-                status=self._presence_status,
-            )
-            LOGGER.info(
-                "Presence status refresh was sent after %d seconds: status=%s.",
-                PRESENCE_REFRESH_DELAY_SECONDS,
-                self._presence_status,
-            )
+            while not self.is_closed():
+                await self._send_gateway_presence(activity_payload=None)
+                LOGGER.info(
+                    "Gateway presence status payload was sent: status=%s.",
+                    _gateway_status(self._presence_status),
+                )
 
-            await asyncio.sleep(PRESENCE_ACTIVITY_DELAY_SECONDS)
-            await self.change_presence(
-                activity=self._presence_activity,
-                status=self._presence_status,
-            )
-            LOGGER.info(
-                "Presence activity refresh was sent after %d more seconds: status=%s, activity_payload=%s.",
-                PRESENCE_ACTIVITY_DELAY_SECONDS,
-                self._presence_status,
-                self._presence_activity.to_dict(),
-            )
+                await asyncio.sleep(PRESENCE_ACTIVITY_DELAY_SECONDS)
+                await self._send_gateway_presence(activity_payload=self._presence_activity_payload)
+                LOGGER.info(
+                    "Gateway presence activity payload was sent: status=%s, activity_payload=%s.",
+                    _gateway_status(self._presence_status),
+                    self._presence_activity_payload,
+                )
+
+                await asyncio.sleep(PRESENCE_REFRESH_INTERVAL_SECONDS)
         except asyncio.CancelledError:
             raise
         except Exception:
             LOGGER.exception("Presence refresh failed.")
+
+    async def _send_gateway_presence(self, *, activity_payload: dict[str, Any] | None) -> None:
+        if self.ws is None:
+            raise RuntimeError("Discord websocket is not initialized.")
+
+        status = _gateway_status(self._presence_status)
+        payload = {
+            "op": 3,
+            "d": {
+                "since": int(time.time() * 1000) if status == "idle" else None,
+                "activities": [] if activity_payload is None else [activity_payload],
+                "status": status,
+                "afk": False,
+            },
+        }
+        LOGGER.info("Sending docs-compliant gateway presence payload: %s", payload)
+        await self.ws.send(json.dumps(payload, ensure_ascii=False))
 
     async def close(self) -> None:
         if self._presence_refresh_task is not None and not self._presence_refresh_task.done():
@@ -112,13 +134,12 @@ class WorkshopBot(commands.Bot):
         return self.api
 
 
-def _build_activity(activity_config: ActivityConfig) -> discord.BaseActivity:
-    if activity_config.type.strip().lower() == "playing":
-        return discord.Game(name=activity_config.name)
-    return discord.Activity(
-        type=_parse_activity_type(activity_config.type),
-        name=activity_config.name,
-    )
+def _build_activity_payload(activity_config: ActivityConfig) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "name": activity_config.name,
+        "type": _parse_activity_type(activity_config.type).value,
+    }
+    return payload
 
 
 def _parse_activity_type(value: str) -> discord.ActivityType:
@@ -150,3 +171,9 @@ def _parse_status(value: str) -> discord.Status:
         return mapping[normalized]
     except KeyError as exc:
         raise ValueError(f"Unsupported presence status: {value!r}") from exc
+
+
+def _gateway_status(status: discord.Status) -> str:
+    if status is discord.Status.offline:
+        return "invisible"
+    return str(status)

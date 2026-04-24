@@ -17,6 +17,10 @@ class OpenWorkshopResponseError(OpenWorkshopError):
     """Raised when the API returns a response that does not match expectations."""
 
 
+class OpenWorkshopNotFoundError(OpenWorkshopError):
+    """Raised when the API reports that a requested resource does not exist."""
+
+
 @dataclass(slots=True)
 class DownloadResponse:
     kind: Literal["zip", "json", "other"]
@@ -33,22 +37,20 @@ class OpenWorkshopAPI:
         base_url: str,
         *,
         request_timeout_seconds: float,
-        statistics_timeout_seconds: float,
     ) -> None:
         self._session = session
         self._base_url = base_url.rstrip("/")
         self._request_timeout = aiohttp.ClientTimeout(total=request_timeout_seconds)
-        self._statistics_timeout = aiohttp.ClientTimeout(total=statistics_timeout_seconds)
-
-    async def fetch_statistics(self) -> dict[str, Any]:
-        return await self._fetch_json("statistics/info/all", timeout=self._statistics_timeout)
 
     async def fetch_mod_info(self, mod_id: int) -> dict[str, Any]:
-        return await self._fetch_json(f"info/mod/{mod_id}", timeout=self._request_timeout)
+        return await self._fetch_json(f"mods/{mod_id}", timeout=self._request_timeout)
 
     async def fetch_download(self, mod_id: int) -> DownloadResponse:
-        url = self._make_url(f"download/steam/{mod_id}")
+        url = self._make_url(f"mods/{mod_id}/download")
         async with self._session.get(url, timeout=self._request_timeout) as response:
+            if response.status == 404:
+                raise OpenWorkshopNotFoundError("Open Workshop mod was not found.")
+
             content_type = response.headers.get("content-type", "")
 
             if content_type.startswith("application/zip"):
@@ -83,6 +85,8 @@ class OpenWorkshopAPI:
     ) -> dict[str, Any]:
         url = self._make_url(path)
         async with self._session.get(url, timeout=timeout) as response:
+            if response.status == 404:
+                raise OpenWorkshopNotFoundError("Open Workshop mod was not found.")
             return await self._read_json(response)
 
     async def _read_json(self, response: aiohttp.ClientResponse) -> dict[str, Any]:

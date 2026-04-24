@@ -56,7 +56,7 @@ def parse_workshop_id(raw_value: str) -> str | None:
             return mod_id if mod_id.isdigit() else None
         return None
 
-    if host.endswith("openworkshop.su") and path.startswith("mod/"):
+    if host.endswith(("openworkshop.su", "openworkshop.miskler.ru")) and path.startswith("mod/"):
         mod_id = path.removeprefix("mod/").split("/", 1)[0]
         return mod_id if mod_id.isdigit() else None
 
@@ -72,9 +72,14 @@ def explain_invalid_workshop_link(raw_value: str, messages: MessagesConfig) -> s
     host = parsed.netloc.lower()
 
     if parsed.scheme in {"http", "https"} and host.endswith(
-        ("steamcommunity.com", "openworkshop.su", "store.steampowered.com")
+        (
+            "steamcommunity.com",
+            "openworkshop.su",
+            "openworkshop.miskler.ru",
+            "store.steampowered.com",
+        )
     ):
-        if host.endswith(("steamcommunity.com", "openworkshop.su")):
+        if host.endswith(("steamcommunity.com", "openworkshop.su", "openworkshop.miskler.ru")):
             return messages.need_specific_mod_link
         return messages.unsupported_source
 

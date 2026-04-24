@@ -8,11 +8,13 @@
     }
   },
   "api": {
-    "base_url": "https://api.openworkshop.su",
-    "website_url": "https://openworkshop.su",
+    "base_url": "https://api.openworkshop.miskler.ru",
+    "website_url": "https://openworkshop.miskler.ru",
     "direct_download_threshold_bytes": 10485760,
-    "request_timeout_seconds": 20,
-    "statistics_timeout_seconds": 10
+    "request_timeout_seconds": 20
+  },
+  "storage": {
+    "database_path": "data/statistics.sqlite3"
   },
   "ui": {
     "statistics_embed_title": "Общая статистика",
@@ -41,17 +43,16 @@
       {
         "label": "API бота",
         "emoji": "🤩",
-        "url": "https://api.openworkshop.su"
+        "url": "https://api.openworkshop.miskler.ru"
       },
       {
         "label": "Сайт",
         "emoji": "☝",
-        "url": "https://openworkshop.su"
+        "url": "https://openworkshop.miskler.ru"
       }
     ]
   },
   "messages": {
-    "statistics_timeout": "Превышено время ожидания при получении общей статистики.",
     "server_unavailable": "Похоже, что сервер не отвечает 😔",
     "invalid_link": "Ты мне какую-то не правильную ссылку скинул! 🧐",
     "need_specific_mod_link": "Мне нужна ссылка конкретно на мод! _(или его ID)_",

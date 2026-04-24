@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import date
 from io import BytesIO
 import logging
 import time
@@ -12,7 +13,8 @@ from discord import app_commands
 from discord.ext import commands
 
 from ..config import BotConfig
-from ..service import OpenWorkshopError
+from ..service import OpenWorkshopError, OpenWorkshopNotFoundError
+from ..storage import StatisticsSnapshot
 from ..utils import (
     explain_invalid_workshop_link,
     format_count,
@@ -87,6 +89,10 @@ class WorkshopCog(commands.Cog):
         return self._typed_bot.api_client
 
     @property
+    def statistics_storage(self):
+        return self._typed_bot.statistics_storage
+
+    @property
     def messages(self):
         return self.config.messages
 
@@ -100,28 +106,11 @@ class WorkshopCog(commands.Cog):
 
     async def statistics(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(thinking=True)
-
-        try:
-            info = await self.api.fetch_statistics()
-        except asyncio.TimeoutError:
-            await interaction.followup.send(self.messages.statistics_timeout)
-            return
-        except (aiohttp.ClientError, OpenWorkshopError):
-            await interaction.followup.send(self.messages.server_unavailable)
-            return
+        info = await self.statistics_storage.fetch_statistics()
 
         embed = discord.Embed(
             title=self.ui.statistics_embed_title,
-            description=(
-                f"Пользователям отправлено `{info.get('mods_sent_count', 0)}` файлов.\n"
-                f"Сервис работает `{format_count(info.get('statistics_days', 0), ('день', 'дня', 'дней'))}`.\n\n"
-                f"В каталоге `{format_count(info.get('games', 0), ('игра', 'игры', 'игр'))}` "
-                f"и `{format_count(info.get('mods', 0), ('мод', 'мода', 'модов'))}`.\n"
-                f"`{info.get('mods_dependencies', 0)}` из них имеют зависимости.\n"
-                f"Сервису известно о `{info.get('genres', 0)}` жанрах игр "
-                f"и `{info.get('mods_tags', 0)}` тегах для модов.\n\n"
-                f"Бот находится на `{format_count(len(self.bot.guilds), ('сервере', 'серверах', 'серверах'))}`."
-            ),
+            description=_build_statistics_description(info, guild_count=len(self.bot.guilds)),
             color=parse_discord_color(self.ui.statistics_embed_color),
         )
 
@@ -174,10 +163,16 @@ class WorkshopCog(commands.Cog):
 
         try:
             mod_info = await self.api.fetch_mod_info(mod_id)
+        except OpenWorkshopNotFoundError:
+            await self._record_statistics_outcome("mod_not_found")
+            await interaction.followup.send(self.messages.mod_not_found)
+            return
         except asyncio.TimeoutError:
+            await self._record_statistics_outcome("failed_request")
             await interaction.followup.send(self.messages.server_unavailable)
             return
         except (aiohttp.ClientError, OpenWorkshopError):
+            await self._record_statistics_outcome("failed_request")
             await interaction.followup.send(self.messages.server_unavailable)
             return
 
@@ -189,6 +184,7 @@ class WorkshopCog(commands.Cog):
                 size_bytes = 0
 
             if size_bytes > self.api_config.direct_download_threshold_bytes:
+                await self._record_statistics_outcome("direct_link_sent")
                 title_fallback = f"Ого! `{result.get('name', mod_id)}` весит {round(size_bytes / 1024 / 1024, 1)} мегабайт!"
                 await interaction.followup.send(
                     embed=discord.Embed(
@@ -207,14 +203,21 @@ class WorkshopCog(commands.Cog):
 
         try:
             download = await self.api.fetch_download(mod_id)
+        except OpenWorkshopNotFoundError:
+            await self._record_statistics_outcome("mod_not_found")
+            await interaction.followup.send(self.messages.mod_not_found)
+            return
         except asyncio.TimeoutError:
+            await self._record_statistics_outcome("failed_request")
             await interaction.followup.send(self.messages.server_unavailable)
             return
         except (aiohttp.ClientError, OpenWorkshopError):
+            await self._record_statistics_outcome("failed_request")
             await interaction.followup.send(self.messages.server_unavailable)
             return
 
         if download.kind == "zip" and download.data:
+            await self._record_statistics_outcome("file_sent")
             await interaction.edit_original_response(content=self.messages.download_started)
             elapsed = format_duration(time.perf_counter() - started_at)
             duration_fallback = f"Ваш запрос занял `{elapsed}`"
@@ -234,8 +237,10 @@ class WorkshopCog(commands.Cog):
 
         if download.kind == "json" and isinstance(download.json_data, dict):
             if download.json_data.get("error_id") in {0, 2, 3}:
+                await self._record_statistics_outcome("mod_not_found")
                 await interaction.followup.send(self.messages.mod_not_found)
             else:
+                await self._record_statistics_outcome("failed_request")
                 await interaction.followup.send(self.messages.unexpected_response)
             return
 
@@ -244,6 +249,7 @@ class WorkshopCog(commands.Cog):
             mod_id,
             download.content_type,
         )
+        await self._record_statistics_outcome("failed_request")
         await interaction.followup.send(self.messages.unexpected_response)
 
     def _build_mod_links_view(self, mod_id: int, *, include_direct_download: bool) -> discord.ui.View:
@@ -254,7 +260,7 @@ class WorkshopCog(commands.Cog):
                 discord.ui.Button(
                     style=discord.ButtonStyle.link,
                     label=self.ui.direct_download_button_label,
-                    url=f"{self.api_config.base_url}/download/{mod_id}",
+                    url=f"{self.api_config.base_url}/mods/{mod_id}/download",
                 )
             )
 
@@ -267,6 +273,12 @@ class WorkshopCog(commands.Cog):
         )
         return view
 
+    async def _record_statistics_outcome(self, outcome: str) -> None:
+        try:
+            await self.statistics_storage.record_download_outcome(outcome)
+        except Exception:
+            LOGGER.exception("Failed to record statistics outcome %s", outcome)
+
 
 def _safe_format(template: str, fallback: str, **values: object) -> str:
     try:
@@ -274,3 +286,51 @@ def _safe_format(template: str, fallback: str, **values: object) -> str:
     except (KeyError, IndexError, ValueError):
         LOGGER.warning("Invalid message template in config, falling back to default text.")
         return fallback
+
+
+def _build_statistics_description(info: StatisticsSnapshot, *, guild_count: int) -> str:
+    lines = [
+        f"За сегодня было `{format_count(info.today.requests_count, ('запрос', 'запроса', 'запросов'))}`.",
+        (
+            f"Из них отправлено `{info.today.files_sent_count}` файлов, "
+            f"`{info.today.direct_links_count}` прямых ссылок, "
+            f"`{info.today.mod_not_found_count}` ответов о том, что мод не найден, "
+            f"и `{info.today.failed_requests_count}` ошибок."
+        ),
+        "",
+        (
+            f"За последние 7 дней было `{format_count(info.last_7_days.requests_count, ('запрос', 'запроса', 'запросов'))}`: "
+            f"`{info.last_7_days.files_sent_count}` файлов и `{info.last_7_days.direct_links_count}` прямых ссылок."
+        ),
+        "",
+        (
+            f"За все время бот обработал `{format_count(info.total_requests, ('запрос', 'запроса', 'запросов'))}` "
+            f"за `{format_count(info.statistics_days, ('день', 'дня', 'дней'))}`."
+        ),
+        (
+            f"Всего отправлено `{info.total_files_sent}` файлов, `{info.total_direct_links}` прямых ссылок, "
+            f"`{info.total_mod_not_found}` ответов о ненайденных модах и `{info.total_failed_requests}` ошибок."
+        ),
+    ]
+
+    if info.since_date is not None:
+        lines.extend(
+            [
+                "",
+                f"Сбор статистики ведется с `{_format_iso_date(info.since_date)}`.",
+            ]
+        )
+
+    lines.extend(
+        [
+            f"Бот находится на `{format_count(guild_count, ('сервере', 'серверах', 'серверах'))}`.",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _format_iso_date(value: str) -> str:
+    try:
+        return date.fromisoformat(value).strftime("%d.%m.%Y")
+    except ValueError:
+        return value

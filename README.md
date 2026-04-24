@@ -39,7 +39,8 @@ PYTHONPATH=src python3 -m open_workshop_discord_bot --config path/to/config.json
 
 - `config.json` должен содержать все секции и все поля без пропусков
 - `discord` - статус, activity и автосинхронизация команд
-- `api` - адрес API, сайт, таймауты и порог выдачи прямой ссылки
+- `api` - адрес API, сайт, таймаут запроса и порог выдачи прямой ссылки
+- `storage` - путь к SQLite-базе, где бот хранит статистику по дням
 - `ui` - тексты embed'ов, кнопки и цвета
 - `messages` - все пользовательские сообщения и шаблоны
 - `commands` - имена и описания slash-команд, а также имя context menu

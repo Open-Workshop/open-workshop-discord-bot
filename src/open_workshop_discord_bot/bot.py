@@ -9,6 +9,7 @@ from discord.ext import commands
 from .config import ActivityConfig, BotConfig
 from .cogs.workshop import WorkshopCog
 from .service import OpenWorkshopAPI
+from .storage import StatisticsStorage
 
 
 LOGGER = logging.getLogger(__name__)
@@ -19,6 +20,7 @@ class WorkshopBot(commands.Bot):
         self.config = config
         self.http_session: aiohttp.ClientSession | None = None
         self.api: OpenWorkshopAPI | None = None
+        self.statistics_storage = StatisticsStorage(self.config.storage.database_path)
 
         activity = _build_activity(self.config.discord.activity)
         super().__init__(
@@ -30,11 +32,11 @@ class WorkshopBot(commands.Bot):
 
     async def setup_hook(self) -> None:
         self.http_session = aiohttp.ClientSession()
+        await self.statistics_storage.initialize()
         self.api = OpenWorkshopAPI(
             self.http_session,
             self.config.api.base_url,
             request_timeout_seconds=self.config.api.request_timeout_seconds,
-            statistics_timeout_seconds=self.config.api.statistics_timeout_seconds,
         )
 
         await self.add_cog(WorkshopCog(self))

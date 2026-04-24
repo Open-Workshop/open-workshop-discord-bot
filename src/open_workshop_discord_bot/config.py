@@ -41,7 +41,11 @@ class ApiConfig:
     website_url: str
     direct_download_threshold_bytes: int
     request_timeout_seconds: float
-    statistics_timeout_seconds: float
+
+
+@dataclass(frozen=True, slots=True)
+class StorageConfig:
+    database_path: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,7 +69,6 @@ class UiConfig:
 
 @dataclass(frozen=True, slots=True)
 class MessagesConfig:
-    statistics_timeout: str
     server_unavailable: str
     invalid_link: str
     need_specific_mod_link: str
@@ -99,6 +102,7 @@ class BotConfig:
     discord_token: str
     discord: DiscordConfig
     api: ApiConfig
+    storage: StorageConfig
     ui: UiConfig
     messages: MessagesConfig
     commands: CommandsConfig
@@ -128,6 +132,7 @@ class BotConfig:
                 f"Set the {DISCORD_TOKEN_ENV_VAR} environment variable instead."
             )
         api_section = _require_section(data, "api")
+        storage_section = _require_section(data, "storage")
         ui_section = _require_section(data, "ui")
         messages_section = _require_section(data, "messages")
         commands_section = _require_section(data, "commands")
@@ -172,11 +177,12 @@ class BotConfig:
                 "api.request_timeout_seconds",
                 minimum=0.001,
             ),
-            statistics_timeout_seconds=_required_float(
-                api_section,
-                "statistics_timeout_seconds",
-                "api.statistics_timeout_seconds",
-                minimum=0.001,
+        )
+        storage_config = StorageConfig(
+            database_path=_required_string(
+                storage_section,
+                "database_path",
+                "storage.database_path",
             ),
         )
 
@@ -226,11 +232,6 @@ class BotConfig:
         )
 
         messages_config = MessagesConfig(
-            statistics_timeout=_required_string(
-                messages_section,
-                "statistics_timeout",
-                "messages.statistics_timeout",
-            ),
             server_unavailable=_required_string(
                 messages_section,
                 "server_unavailable",
@@ -317,6 +318,7 @@ class BotConfig:
             discord_token=discord_token,
             discord=discord_config,
             api=api_config,
+            storage=storage_config,
             ui=ui_config,
             messages=messages_config,
             commands=commands_config,

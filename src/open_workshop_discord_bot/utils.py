@@ -81,8 +81,17 @@ def parse_workshop_reference(raw_value: str) -> WorkshopReference | None:
             return None
         return None
 
-    if host.endswith(("openworkshop.su", "openworkshop.miskler.ru")) and path.startswith("mod/"):
+    query_id = parse_qs(parsed.query).get("id", [""])[0].strip()
+    if path.startswith("mod/"):
         mod_id = path.removeprefix("mod/").split("/", 1)[0]
+    elif path.startswith("mods/"):
+        mod_id = path.removeprefix("mods/").split("/", 1)[0]
+    elif query_id:
+        mod_id = query_id
+    else:
+        mod_id = ""
+
+    if path.startswith(("mod/", "mods/")) or query_id:
         if mod_id.isdigit():
             return WorkshopReference(id=int(mod_id), kind="openworkshop")
         return None
@@ -97,20 +106,13 @@ def explain_invalid_workshop_link(raw_value: str, messages: MessagesConfig) -> s
 
     parsed = urlparse(value)
     host = parsed.netloc.lower()
-
-    if parsed.scheme in {"http", "https"} and host.endswith(
-        (
-            "steamcommunity.com",
-            "openworkshop.su",
-            "openworkshop.miskler.ru",
-            "store.steampowered.com",
-        )
-    ):
-        if host.endswith(("steamcommunity.com", "openworkshop.su", "openworkshop.miskler.ru")):
-            return messages.need_specific_mod_link
-        return messages.unsupported_source
+    path = parsed.path.strip("/")
 
     if parsed.scheme in {"http", "https"}:
+        if path.startswith(("mod/", "mods/")):
+            return messages.need_specific_mod_link
+        if host.endswith("steamcommunity.com") and path in {"sharedfiles/filedetails", "workshop/filedetails"}:
+            return messages.need_specific_mod_link
         return messages.unsupported_source
 
     return messages.download_prompt

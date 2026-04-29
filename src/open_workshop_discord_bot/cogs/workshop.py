@@ -176,30 +176,28 @@ class WorkshopCog(commands.Cog):
             await interaction.followup.send(self.messages.server_unavailable)
             return
 
-        result = mod_info.get("result")
-        if isinstance(result, dict):
-            try:
-                size_bytes = int(result.get("size", 0) or 0)
-            except (TypeError, ValueError):
-                size_bytes = 0
+        try:
+            size_bytes = int(mod_info.get("size", 0) or 0)
+        except (TypeError, ValueError):
+            size_bytes = 0
 
-            if size_bytes > self.api_config.direct_download_threshold_bytes:
-                await self._record_statistics_outcome("direct_link_sent")
-                title_fallback = f"Ого! `{result.get('name', mod_id)}` весит {round(size_bytes / 1024 / 1024, 1)} мегабайт!"
-                await interaction.followup.send(
-                    embed=discord.Embed(
-                        title=_safe_format(
-                            self.messages.large_mod_title_template,
-                            title_fallback,
-                            name=result.get("name", mod_id),
-                            size_mb=round(size_bytes / 1024 / 1024, 1),
-                        ),
-                        description=self.messages.large_mod_description,
-                        color=parse_discord_color(self.ui.large_mod_embed_color),
+        if size_bytes > self.api_config.direct_download_threshold_bytes:
+            await self._record_statistics_outcome("direct_link_sent")
+            title_fallback = f"Ого! `{mod_info.get('name', mod_id)}` весит {round(size_bytes / 1024 / 1024, 1)} мегабайт!"
+            await interaction.followup.send(
+                embed=discord.Embed(
+                    title=_safe_format(
+                        self.messages.large_mod_title_template,
+                        title_fallback,
+                        name=mod_info.get("name", mod_id),
+                        size_mb=round(size_bytes / 1024 / 1024, 1),
                     ),
-                    view=self._build_mod_links_view(mod_id, include_direct_download=True),
-                )
-                return
+                    description=self.messages.large_mod_description,
+                    color=parse_discord_color(self.ui.large_mod_embed_color),
+                ),
+                view=self._build_mod_links_view(mod_id, include_direct_download=True),
+            )
+            return
 
         try:
             download = await self.api.fetch_download(mod_id)
@@ -235,15 +233,6 @@ class WorkshopCog(commands.Cog):
             )
             return
 
-        if download.kind == "json" and isinstance(download.json_data, dict):
-            if download.json_data.get("error_id") in {0, 2, 3}:
-                await self._record_statistics_outcome("mod_not_found")
-                await interaction.followup.send(self.messages.mod_not_found)
-            else:
-                await self._record_statistics_outcome("failed_request")
-                await interaction.followup.send(self.messages.unexpected_response)
-            return
-
         LOGGER.warning(
             "Unexpected download response for mod %s with content type %s",
             mod_id,
@@ -260,7 +249,7 @@ class WorkshopCog(commands.Cog):
                 discord.ui.Button(
                     style=discord.ButtonStyle.link,
                     label=self.ui.direct_download_button_label,
-                    url=f"{self.api_config.base_url}/mods/{mod_id}/download",
+                    url=f"{self.api_config.website_url}/mod/{mod_id}/download",
                 )
             )
 

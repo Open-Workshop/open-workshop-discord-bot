@@ -49,6 +49,12 @@ class StorageConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class HealthConfig:
+    host: str
+    port: int
+
+
+@dataclass(frozen=True, slots=True)
 class LinkButtonConfig:
     label: str
     url: str
@@ -103,6 +109,7 @@ class BotConfig:
     discord: DiscordConfig
     api: ApiConfig
     storage: StorageConfig
+    health: HealthConfig
     ui: UiConfig
     messages: MessagesConfig
     commands: CommandsConfig
@@ -136,6 +143,13 @@ class BotConfig:
         ui_section = _require_section(data, "ui")
         messages_section = _require_section(data, "messages")
         commands_section = _require_section(data, "commands")
+        health_section_raw = data.get("health")
+        if health_section_raw is None:
+            health_section: Mapping[str, Any] = {}
+        elif isinstance(health_section_raw, Mapping):
+            health_section = health_section_raw
+        else:
+            raise ConfigurationError("'health' section must be a JSON object.")
 
         discord_token = _required_env_string(DISCORD_TOKEN_ENV_VAR)
         activity_section = _require_section(discord_section, "activity")
@@ -183,6 +197,21 @@ class BotConfig:
                 storage_section,
                 "database_path",
                 "storage.database_path",
+            ),
+        )
+        health_config = HealthConfig(
+            host=_optional_string(
+                health_section,
+                "host",
+                "health.host",
+                default="0.0.0.0",
+            ),
+            port=_optional_int(
+                health_section,
+                "port",
+                "health.port",
+                default=8089,
+                minimum=0,
             ),
         )
 
@@ -319,6 +348,7 @@ class BotConfig:
             discord=discord_config,
             api=api_config,
             storage=storage_config,
+            health=health_config,
             ui=ui_config,
             messages=messages_config,
             commands=commands_config,
@@ -413,6 +443,39 @@ def _required_float(
     if minimum is not None and parsed < minimum:
         raise ConfigurationError(f"'{path}' must be at least {minimum}.")
     return parsed
+
+
+def _optional_string(
+    section: Mapping[str, Any],
+    key: str,
+    path: str,
+    *,
+    default: str,
+) -> str:
+    if key not in section:
+        return default
+    value = section.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise ConfigurationError(f"'{path}' must be a non-empty string.")
+    return value.strip()
+
+
+def _optional_int(
+    section: Mapping[str, Any],
+    key: str,
+    path: str,
+    *,
+    default: int,
+    minimum: int | None = None,
+) -> int:
+    if key not in section:
+        return default
+    value = section.get(key)
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ConfigurationError(f"'{path}' must be an integer.")
+    if minimum is not None and value < minimum:
+        raise ConfigurationError(f"'{path}' must be at least {minimum}.")
+    return value
 
 
 def _required_sequence(

@@ -7,6 +7,10 @@
       "name": "скачивание модов"
     }
   },
+  "health": {
+    "host": "0.0.0.0",
+    "port": 8089
+  },
   "api": {
     "base_url": "https://api.openworkshop.miskler.ru",
     "website_url": "https://openworkshop.miskler.ru",

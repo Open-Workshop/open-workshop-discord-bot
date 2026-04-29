@@ -7,6 +7,7 @@ import discord
 from discord.ext import commands
 
 from .config import ActivityConfig, BotConfig
+from .health import HealthProbeServer
 from .cogs.workshop import WorkshopCog
 from .service import OpenWorkshopAPI
 from .storage import StatisticsStorage
@@ -21,6 +22,10 @@ class WorkshopBot(commands.Bot):
         self.http_session: aiohttp.ClientSession | None = None
         self.api: OpenWorkshopAPI | None = None
         self.statistics_storage = StatisticsStorage(self.config.storage.database_path)
+        self.health_probe = HealthProbeServer(
+            host=self.config.health.host,
+            port=self.config.health.port,
+        )
 
         self._presence_activity = _build_activity(self.config.discord.activity)
         self._presence_status = _parse_status(self.config.discord.status)
@@ -32,22 +37,30 @@ class WorkshopBot(commands.Bot):
         )
 
     async def setup_hook(self) -> None:
-        self.http_session = aiohttp.ClientSession()
-        await self.statistics_storage.initialize()
-        self.api = OpenWorkshopAPI(
-            self.http_session,
-            self.config.api.base_url,
-            request_timeout_seconds=self.config.api.request_timeout_seconds,
-        )
+        await self.health_probe.start()
+        try:
+            self.http_session = aiohttp.ClientSession()
+            await self.statistics_storage.initialize()
+            self.api = OpenWorkshopAPI(
+                self.http_session,
+                self.config.api.base_url,
+                request_timeout_seconds=self.config.api.request_timeout_seconds,
+            )
 
-        await self.add_cog(WorkshopCog(self))
-        if self.config.discord.sync_commands_on_startup:
-            synced_commands = await self.tree.sync()
-            LOGGER.info("Synced %d application commands.", len(synced_commands))
-        else:
-            LOGGER.info("Skipped application command sync because it is disabled in config.")
+            await self.add_cog(WorkshopCog(self))
+            if self.config.discord.sync_commands_on_startup:
+                synced_commands = await self.tree.sync()
+                LOGGER.info("Synced %d application commands.", len(synced_commands))
+            else:
+                LOGGER.info("Skipped application command sync because it is disabled in config.")
+        except Exception:
+            self.health_probe.mark_not_ready()
+            await self._close_runtime_resources()
+            await self.health_probe.stop()
+            raise
 
     async def on_ready(self) -> None:
+        self.health_probe.mark_ready()
         user_id = self.user.id if self.user is not None else "unknown"
         guilds = sorted(self.guilds, key=lambda guild: guild.name.lower())
         guild_summary = ", ".join(f"{guild.name}({guild.id})" for guild in guilds[:10])
@@ -74,9 +87,16 @@ class WorkshopBot(commands.Bot):
                 self.config.discord.status,
             )
 
-    async def close(self) -> None:
+    async def _close_runtime_resources(self) -> None:
         if self.http_session is not None and not self.http_session.closed:
             await self.http_session.close()
+        self.http_session = None
+        self.api = None
+
+    async def close(self) -> None:
+        self.health_probe.mark_not_ready()
+        await self.health_probe.stop()
+        await self._close_runtime_resources()
         await super().close()
 
     @property

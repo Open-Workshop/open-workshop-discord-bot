@@ -1,6 +1,6 @@
 # Open Workshop - Discord Bot
 
-Discord-бот для скачивания модов Open Workshop напрямую из чата.
+Discord-бот для скачивания модов Open Workshop, Factorio и Steam Workshop напрямую из чата.
 
 ## Что изменилось
 

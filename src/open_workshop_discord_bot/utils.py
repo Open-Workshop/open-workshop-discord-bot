@@ -11,6 +11,23 @@ from .config import MessagesConfig
 
 
 _FILENAME_CLEANUP_RE = re.compile(r"[\\/\x00-\x1f]+")
+_FACTORIO_MOD_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
+_FACTORIO_RESERVED_NAMES = {
+    "changelog",
+    "dependencies",
+    "discussion",
+    "download",
+    "downloads",
+    "factorio",
+    "http",
+    "https",
+    "information",
+    "metrics",
+    "mod",
+    "mods",
+    "openworkshop",
+    "steam",
+}
 _DISCORD_NAMED_COLOR_VALUES = {
     "dark_gray": 0x607D8B,
     "dark_grey": 0x607D8B,
@@ -23,8 +40,8 @@ _DISCORD_NAMED_COLOR_VALUES = {
 
 @dataclass(frozen=True, slots=True)
 class WorkshopReference:
-    id: int
-    kind: Literal["openworkshop", "steam", "unknown"]
+    id: int | str
+    kind: Literal["openworkshop", "steam", "factorio", "unknown"]
 
 
 def format_count(number: int, forms: tuple[str, str, str]) -> str:
@@ -65,6 +82,8 @@ def parse_workshop_reference(raw_value: str) -> WorkshopReference | None:
         return None
     if value.isdigit():
         return WorkshopReference(id=int(value), kind="unknown")
+    if value.lower() not in _FACTORIO_RESERVED_NAMES and _FACTORIO_MOD_NAME_RE.fullmatch(value):
+        return WorkshopReference(id=value, kind="factorio")
 
     parsed = urlparse(value)
     if parsed.scheme not in {"http", "https"}:
@@ -79,6 +98,12 @@ def parse_workshop_reference(raw_value: str) -> WorkshopReference | None:
             if mod_id.isdigit():
                 return WorkshopReference(id=int(mod_id), kind="steam")
             return None
+        return None
+
+    if host.endswith("mods.factorio.com"):
+        mod_name = _extract_factorio_mod_name(path)
+        if mod_name is not None:
+            return WorkshopReference(id=mod_name, kind="factorio")
         return None
 
     query_id = parse_qs(parsed.query).get("id", [""])[0].strip()
@@ -112,6 +137,8 @@ def explain_invalid_workshop_link(raw_value: str, messages: MessagesConfig) -> s
         if path.startswith(("mod/", "mods/")):
             return messages.need_specific_mod_link
         if host.endswith("steamcommunity.com") and path in {"sharedfiles/filedetails", "workshop/filedetails"}:
+            return messages.need_specific_mod_link
+        if host.endswith("mods.factorio.com") and path.startswith(("mod/", "mods/")):
             return messages.need_specific_mod_link
         return messages.unsupported_source
 
@@ -168,3 +195,33 @@ def parse_discord_color(value: str | int) -> discord.Color:
         raise ValueError(f"Unsupported color value: {value!r}")
 
     return discord.Color(int(normalized, 16))
+
+
+def _extract_factorio_mod_name(path: str) -> str | None:
+    segments = [segment for segment in path.split("/") if segment]
+    if not segments:
+        return None
+
+    if segments[0] == "mod":
+        candidate = segments[1] if len(segments) > 1 else ""
+    elif segments[0] == "mods":
+        if len(segments) == 2:
+            candidate = segments[1]
+        elif len(segments) == 3:
+            candidate = segments[1] if segments[2] in _FACTORIO_SUBPAGES else segments[2]
+        else:
+            candidate = segments[-2] if segments[-1] in _FACTORIO_SUBPAGES else segments[-1]
+    else:
+        return None
+
+    return candidate if candidate and _FACTORIO_MOD_NAME_RE.fullmatch(candidate) else None
+
+
+_FACTORIO_SUBPAGES = {
+    "changelog",
+    "dependencies",
+    "discussion",
+    "downloads",
+    "information",
+    "metrics",
+}

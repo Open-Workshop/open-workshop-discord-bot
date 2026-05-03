@@ -52,7 +52,7 @@ class OpenWorkshopAPI:
     async def fetch_mod_info_by_source_id(
         self,
         source: str,
-        source_id: int,
+        source_id: str | int,
     ) -> tuple[int, dict[str, Any]]:
         payload = await self._request_json(
             "GET",
@@ -62,7 +62,7 @@ class OpenWorkshopAPI:
                 "page_size": 1,
                 "page": 0,
                 "sources": [source],
-                "source_ids": [source_id],
+                "source_ids": [str(source_id)],
             },
         )
 

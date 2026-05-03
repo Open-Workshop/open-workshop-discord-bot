@@ -113,7 +113,40 @@ class OpenWorkshopServiceTests(unittest.TestCase):
         self.assertEqual(kwargs["params"]["page_size"], 1)
         self.assertEqual(kwargs["params"]["page"], 0)
         self.assertEqual(kwargs["params"]["sources"], ["steam"])
-        self.assertEqual(kwargs["params"]["source_ids"], [3701480464])
+        self.assertEqual(kwargs["params"]["source_ids"], ["3701480464"])
+
+    def test_fetch_mod_info_by_source_id_supports_factorio_source_ids(self) -> None:
+        session = _DummySession(
+            {
+                ("GET", "https://api.example/mods"): _DummyResponse(
+                    status=200,
+                    json_payload={
+                        "items": [
+                            {
+                                "id": 107531,
+                                "name": "Planet Ribbonia",
+                                "size": 1616434,
+                                "source": "factorio",
+                                "source_id": "ribbonia",
+                            }
+                        ]
+                    },
+                )
+            }
+        )
+        api = OpenWorkshopAPI(session, "https://api.example", request_timeout_seconds=5)
+
+        mod_id, payload = asyncio.run(api.fetch_mod_info_by_source_id("factorio", "ribbonia"))
+
+        self.assertEqual(mod_id, 107531)
+        self.assertEqual(payload["source"], "factorio")
+        method, url, kwargs = session.calls[0]
+        self.assertEqual(method, "GET")
+        self.assertEqual(url, "https://api.example/mods")
+        self.assertEqual(kwargs["params"]["page_size"], 1)
+        self.assertEqual(kwargs["params"]["page"], 0)
+        self.assertEqual(kwargs["params"]["sources"], ["factorio"])
+        self.assertEqual(kwargs["params"]["source_ids"], ["ribbonia"])
 
     def test_fetch_download_follows_download_url(self) -> None:
         download_url = "https://storage.example/download/archive/mods/784/main.zip?filename=Wolfein_Race.zip"

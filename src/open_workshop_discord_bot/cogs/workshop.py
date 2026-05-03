@@ -157,7 +157,7 @@ class WorkshopCog(commands.Cog):
             )
             return
 
-        if reference.id <= 0:
+        if isinstance(reference.id, int) and reference.id <= 0:
             await interaction.followup.send(self.messages.negative_mod_id)
             return
 
@@ -271,6 +271,10 @@ class WorkshopCog(commands.Cog):
     async def _fetch_mod_info(self, reference: WorkshopReference) -> tuple[int, dict]:
         if reference.kind == "steam":
             return await self.api.fetch_mod_info_by_source_id("steam", reference.id)
+        if reference.kind == "factorio":
+            return await self.api.fetch_mod_info_by_source_id("factorio", reference.id)
+        if not isinstance(reference.id, int):
+            raise OpenWorkshopError("Unsupported workshop reference type.")
 
         try:
             return reference.id, await self.api.fetch_mod_info(reference.id)
